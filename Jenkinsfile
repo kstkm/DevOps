@@ -2,10 +2,11 @@ pipeline {
     agent any
 
     environment {
-        // Динамический тег версии на основе номера сборки Jenkins
-        DOCKER_IMAGE = "your-docker-hub-username/todo-app"
+        // ЗАМЕНИТЕ на ваш логин на Docker Hub
+        DOCKER_HUB_USER = "your-docker-hub-username"
+        IMAGE_NAME = "todo-app"
         VERSION = "1.1.${BUILD_NUMBER}"
-        REGISTRY_CREDS = 'docker-hub-creds'
+        REGISTRY_CREDS = 'docker-hub-creds' // ID ваших credentials в Jenkins
     }
 
     stages {
@@ -15,10 +16,10 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build with Maven') {
             steps {
-                // Используем Maven Wrapper как в задании (аналог gradlew)
                 sh "chmod +x mvnw"
+                // Собираем проект через Maven Wrapper
                 sh "./mvnw clean package -DskipTests"
             }
         }
@@ -31,53 +32,58 @@ pipeline {
 
         stage('Static Code Analysis') {
             steps {
-                // Выполняется, но не валит билд, если не настроены жесткие пороги
+                // Выполняем анализ (Checkstyle)
                 sh "./mvnw checkstyle:checkstyle"
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Prepare and Build Docker Image') {
             steps {
                 script {
-                    // Сборка образа с динамическим тегом
-                    appImage = docker.build("${DOCKER_IMAGE}:${VERSION}", "-f Docker/Dockerfile .")
+                    // Выполняем требование ТЗ: JAR должен быть в build/libs/
+                    sh "mkdir -p build/libs"
+                    sh "cp target/*.jar build/libs/app.jar"
+
+                    // Собираем образ
+                    sh "docker build -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:${VERSION} -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest -f Docker/Dockerfile ."
                 }
             }
         }
 
         stage('Push to Registry') {
             steps {
-                script {
-                    docker.withRegistry('', REGISTRY_CREDS) {
-                        appImage.push()
-                        appImage.push("latest")
-                    }
+                // Безопасное использование логина/пароля от Docker Hub
+                withCredentials([usernamePassword(credentialsId: "${REGISTRY_CREDS}", passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                    sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
+                    sh "docker push ${DOCKER_HUB_USER}/${IMAGE_NAME}:${VERSION}"
+                    sh "docker push ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest"
+                    sh "docker logout"
                 }
             }
         }
 
         stage('Conditional Deploy') {
             when {
-                branch 'main' // Выполняется только на ветке main
+                branch 'main'
             }
             steps {
-                echo "Deploying version ${VERSION} to Production..."
-                // Здесь может быть команда docker-compose up или деплой в K8s
+                echo "=== DEPLOYING VERSION ${VERSION} TO PRODUCTION ==="
+                // Здесь можно добавить команду запуска:
+                // sh "docker compose -f Docker/docker-composeKostya.yml up -d"
             }
         }
     }
 
     post {
         always {
-            // Архивация логов и JAR файла
-            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            // Архивация артефактов (JAR файла) для истории
+            archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
         }
         success {
-            echo "Pipeline finished successfully!"
+            echo "Successfully built and pushed version ${VERSION}"
         }
         failure {
-            echo "Pipeline failed! Check logs."
-            // Можно добавить mail to: 'admin@example.com', subject: "Build Failed: ${env.JOB_NAME}"
+            echo "Pipeline failed! Проверьте логи сборки выше."
         }
     }
 }
