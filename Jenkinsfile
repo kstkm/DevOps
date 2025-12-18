@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "pacapu/devops"
-        IMAGE_TAG  = "1.0"
-        REGISTRY_CREDENTIALS = "dockerhub-creds"
+        // Динамический тег версии на основе номера сборки Jenkins
+        DOCKER_IMAGE = "your-docker-hub-username/todo-app"
+        VERSION = "1.1.${BUILD_NUMBER}"
+        REGISTRY_CREDS = 'docker-hub-creds'
     }
 
     stages {
@@ -16,70 +17,67 @@ pipeline {
 
         stage('Build') {
             steps {
-                script {
-                    if (isUnix()) {
-                        sh './mvnw clean package -DskipTests'
-                    } else {
-                        bat 'call mvnw.cmd clean package -DskipTests'
-                    }
-                }
+                // Используем Maven Wrapper как в задании (аналог gradlew)
+                sh "chmod +x mvnw"
+                sh "./mvnw clean package -DskipTests"
             }
         }
 
         stage('Test') {
             steps {
+                sh "./mvnw test"
+            }
+        }
+
+        stage('Static Code Analysis') {
+            steps {
+                // Выполняется, но не валит билд, если не настроены жесткие пороги
+                sh "./mvnw checkstyle:checkstyle"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
                 script {
-                    if (isUnix()) {
-                        sh './mvnw test'
-                    } else {
-                        bat 'call mvnw.cmd test'
+                    // Сборка образа с динамическим тегом
+                    appImage = docker.build("${DOCKER_IMAGE}:${VERSION}", "-f Docker/Dockerfile .")
+                }
+            }
+        }
+
+        stage('Push to Registry') {
+            steps {
+                script {
+                    docker.withRegistry('', REGISTRY_CREDS) {
+                        appImage.push()
+                        appImage.push("latest")
                     }
                 }
             }
         }
 
-        stage('Docker Build') {
-            steps {
-                script {
-                    if (isUnix()) {
-                        sh "docker build -f Dockerfile -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                    } else {
-                        bat "docker build -f Dockerfile -t %IMAGE_NAME%:%IMAGE_TAG% ."
-                    }
-                }
+        stage('Conditional Deploy') {
+            when {
+                branch 'main' // Выполняется только на ветке main
             }
-        }
-
-        stage('Push') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: "${REGISTRY_CREDENTIALS}",
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    script {
-                        if (isUnix()) {
-                            sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-                            sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
-                        } else {
-                            bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
-                            bat "docker push %IMAGE_NAME%:%IMAGE_TAG%"
-                        }
-                    }
-                }
+                echo "Deploying version ${VERSION} to Production..."
+                // Здесь может быть команда docker-compose up или деплой в K8s
             }
         }
     }
 
     post {
         always {
-            script {
-                if (isUnix()) {
-                    sh 'docker logout || true'
-                } else {
-                    bat 'docker logout'
-                }
-            }
+            // Архивация логов и JAR файла
+            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+        }
+        success {
+            echo "Pipeline finished successfully!"
+        }
+        failure {
+            echo "Pipeline failed! Check logs."
+            // Можно добавить mail to: 'admin@example.com', subject: "Build Failed: ${env.JOB_NAME}"
         }
     }
 }
