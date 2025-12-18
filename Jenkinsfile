@@ -6,7 +6,7 @@ pipeline {
         DOCKER_HUB_USER = "pacapu"
         IMAGE_NAME = "todo-app"
         VERSION = "1.1.${BUILD_NUMBER}"
-        REGISTRY_CREDS = 'docker-hub-creds' // ID ваших credentials в Jenkins
+        REGISTRY_CREDS = 'c121d05e-88a3-42b8-a857-828b24f58ff0' // ID ваших credentials в Jenkins
     }
 
     stages {
