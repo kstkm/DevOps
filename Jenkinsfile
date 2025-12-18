@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         // ЗАМЕНИТЕ на ваш логин на Docker Hub
-        DOCKER_HUB_USER = "your-docker-hub-username"
+        DOCKER_HUB_USER = "pacapu"
         IMAGE_NAME = "todo-app"
         VERSION = "1.1.${BUILD_NUMBER}"
         REGISTRY_CREDS = 'docker-hub-creds' // ID ваших credentials в Jenkins
