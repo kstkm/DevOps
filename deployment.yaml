@@ -15,7 +15,7 @@ spec:
       containers:
         - name: demo
           image: pacapu/devops:1.0
-          imagePullPolicy: Never
+          imagePullPolicy: Always
           ports:
             - containerPort: 8181
           envFrom:
@@ -23,3 +23,10 @@ spec:
                 name: demo-config
             - secretRef:
                 name: demo-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

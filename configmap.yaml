@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: demo-config
 data:
-  APP_NAME: "TodoApp"
+  SPRING_APPLICATION_NAME: "demo"
   APP_PORT: "8181"
