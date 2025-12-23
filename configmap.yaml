@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: demo-config
+  name: todo-app-config
 data:
-  SPRING_APPLICATION_NAME: "demo"
-  APP_PORT: "8181"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://host.minikube.internal:5432/testdb"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"

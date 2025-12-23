@@ -1,0 +1,11 @@
+
+- name: Infrastructure Automation
+  hosts: all
+  become: yes
+  vars_files:
+    - vars/secrets.yml
+
+  roles:
+    - docker
+    - k8s_setup
+    - jenkins
